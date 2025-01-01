@@ -50,3 +50,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# material (code,pdfs) from lectures, course etc
+# this should be kept locally
+materials/
