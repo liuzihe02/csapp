@@ -376,35 +376,73 @@ However, unlike multiplication, we can't express division by arbitrary constants
 
 ## Floating Point
 
+### Fractional Binary Numbers
+
+<img src="../images/C2_FracBin.png" width =400>
+
+We can represent fractions in binary,  $b = \sum_{k=-j}^i 2^k * b_k$. Bits to the right of the binary point represent powers of 2.
+- we can only have one setting of the binary point, so limited range of numbers
+
 ### IEEE Floating-Point Representation
 
-The IEEE floating-point standard represents a number in a form $V = (−1)^s × M × 2^E$:
+The IEEE floating-point standard represents a number in a form
 
-* single sign bit s
-* k-bit exponent field
-* n-bit fraction field
+$$V = (−1)^s × M × 2^E$$
 
-* single-precision := s=1, k=8, n=23 s=bits[31] exp=bits[30:23] frac=bits[22:0]
-* double-precision := s=1, k=11, n=52 s=bits[63] exp=bits[62:52] frac=bits[51:0]
+<img src="../images/C2_fpformat.png" width =400>
 
-1. Normalized := | s | ≠0 & ≠255 | f | $E = e − Bias$ $Bias = 2^{k-1} - 1$ $M = 1 + f$
-2. Denormalized := | s | 00000000 | f | $E = 1 - Bias$ $M = f$
-3. a.Infinity := | s | 11111111 | 0...0 |
-4. b.NaN := | s | 11111111 | ≠0 |
+* single sign bit `s` encodes the sign $s$
+* `k`-bit exponent field `exp` encodes the exponent $E$
+* `n`-bit fraction field `frac` encodes the significand $M$
 
-Denormalized numbers serve to provide a way to represent 0 and numbers that are very close to 0.0.
+* `single-precision := s=1, k=8, n=23 s=bits[31] exp=bits[30:23] frac=bits[22:0]`
+* `double-precision := s=1, k=11, n=52 s=bits[63] exp=bits[62:52] frac=bits[51:0]`
 
-Infinity can represent results that overflow, as when we
-multiply two very large numbers, or when we divide by zero.
+**Case 1: Normalized**
 
-NaN (short for "Not a Number") are returned as the result of an operation where the result cannot be given as a real number or as infinity, as when computing $−1$ or $∞ − ∞$. They can also be useful in some applications for representing uninitialized data.
+Condition `(exp!=00...00) && (exp!=11...11)`:
+- $E = Exp -Bias$
+  - $Exp$ is the unsigned value of `exp`
+  - $Bias=2^{k-1}-1$ where k is the length of `exp`
+  - Single precision: `k=8`, $1 \leq Exp \leq 254$, $-126 \leq E \leq 127$
+- Signficand coded with implied leading 1, $M=1.x...xx_2$
+  - $x...xx$ is the bits of `frac`
+  - Math means `frac=0...00` is $0$ and `frac=1...11` is $1$
+
+**Case 2: Denormalized**
+
+Condition `exp=00...00`:
+- $E = 1 - Bias$ (instead of $E = 0 -Bias$)
+- significand coded with implied leading 0, $M=0.x...xx_2$
+  - $x...xx$ represents bits of `frac`
+
+Cases
+- `exp=00...00 && frac=00...00`:
+  - Represents zero value
+  - Two distinct values: +0 and -0 (due to sign bit)
+- `exp=00...00 && frac≠00...00`:
+  - Numbers closest to 0.0
+  - Values are equispaced
+
+**Case 3: Special Values**
+
+Condition `exp=11...11`:
+- When `exp=11...11 && frac=00...00`:
+  - Represents $\infty$ (infinity)
+  - Results from overflow operations
+  - Can be positive or negative based on sign bit
+- When `exp=11...11 && frac≠00...00`:
+  - Not-a-Number (NaN)
+  - Used when no numeric value exists
+  - Examples: $\sqrt{-1}$, $\infty - \infty$, $\infty \times 0$
+
+<img src="../images/C2_FPSpacing.png" width =500>
+
+Note the numbers represented are not spaced evenly.
 
 ### Rounding
 
-Round-to-even := Rounding toward even numbers avoids statistical bias in most real-life situations.
-Round-toward-zero
-Round-down
-Round-up
+When at a "halfway" point, we round to nearest even number (where LSE is `0`)
 
 ### Floating-Point Operations
 
@@ -412,15 +450,17 @@ Floating point operations lack associativity and distributivity, but are commuta
 
 ### Floating Point in C
 
-* From int to float, the number cannot overflow, but it may be rounded.
-* From int or float to double, the exact numeric value can be preserved because double has both greater range (i.e., the range of representable values), as well as greater precision (i.e., the number of significant bits).
-* From double to float, the value can overflow to $+∞$ or $−∞$, since the range is smaller. Otherwise, it may be rounded, because the precision is smaller.
-* From float or double to int the value will be rounded toward zero.
+And casting values between `int`, `float`, `double`:
+
+- From `int` to `float`, the number can't overflow, but it may be rounded.
+- From `int` or `float` to `double`,the exact numeric value can be preserved.
+- From `double` to `float`, the value can overflow or rounded.
+- From `float` or `double` to `int`, the value will be rounded toward zero. value may overflow.
 
 Floating-point arithmetic must be used very carefully, because it has only limited range and precision, and because it does not obey common mathematical properties such as associativity.
 
 ## Miscs
 
-$~x+1$ is equivalent to $-x$.
+`~x+1` is equivalent to `-x`.
 
-$(1<<k)-1$ to generate masks.
+`(1<<k)-1` to generate masks.
