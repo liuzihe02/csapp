@@ -108,8 +108,8 @@ Logical operators do not evaluate their second argument if the result of the exp
 For an operand `x` having bit representation $[x_{n−1}, x_{n−2}, . . . , x_0]$, the C expression `x << k` yields a value with bit representation $[x_{n−k−1}, x_{n−k−2},...,x_0,0,...0]$. That is, x is shifted k bits to the left, dropping off the k most significant bits (on the left) and filling the right end with k zeros.
 
 **Right Shift `x>>y`**
-- logical right shift: fills the left end with k zeros, giving a result $[0, . . . , 0, x_{n−1}, x_{n−2}, . . . x_k]$
-- arithmetic right shift: fills the left end with k repetitions of the most significant bit (leftmost bit), giving a result $[x_{n−1}, . . . , x_{n−1}, x_{n−1}, x_{n−2}, . . . x_k]$.
+- *logical right shift*: fills the left end with k zeros, giving a result $[0, . . . , 0, x_{n−1}, x_{n−2}, . . . x_k]$
+- *arithmetic right shift*: fills the left end with k repetitions of the most significant bit (leftmost bit), giving a result $[x_{n−1}, . . . , x_{n−1}, x_{n−1}, x_{n−2}, . . . x_k]$.
 
 In practice, almost all compiler/machine combinations use arithmetic right shifts for signed data, and many programmers assume this to be the case.
 

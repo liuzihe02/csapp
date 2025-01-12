@@ -143,7 +143,11 @@ NOTES:
  *   Rating: 1
  */
 int bitXor(int x, int y) {
-  return 2;
+  /*
+  note that  x XOR y = (~x & y) | (x & ~y) using kmaps
+  then using demorgans law, this is equivalent to ~(~(~x & y) & ~(x & ~y));
+  */
+  return ~(~(~x & y) & ~(x & ~y));
 }
 /* 
  * tmin - return minimum two's complement integer 
@@ -152,10 +156,10 @@ int bitXor(int x, int y) {
  *   Rating: 1
  */
 int tmin(void) {
-
-  return 2;
-
+  // this smallest value is 10000... etc all the way, for 32 bit integers
+  return 1<<31;
 }
+
 //2
 /*
  * isTmax - returns 1 if x is the maximum, two's complement number,
@@ -165,8 +169,44 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-  return 2;
+  /* Some key properties
+  - the largest 2s complement integer is 0111....
+  - when you add 1 to Tmax, it carries over to Tmin 1000...
+  - Tmin ^ Tmax is 1111... which has a value of -1
+  - If we do !(111...) we will get 000...
+  - Then we can just use the operators ! to check if this is indeed 0000...
+
+  - AND also need to handle edge case of x being -1, 1111...
+  - need to do !!(~x) operator to check if x is indeed -1
+  */
+
+ /*
+ For Tmax: (1000...0000) ^ (0111...1111) = 1111...1111
+This gives all 1s only for x=Tmax and x=-1
+ */
+ int step1 = (x + 1) ^ x;
+ /*
+ Takes the complement of all 1s, giving us 0000...0000
+For non-Tmax numbers, this will be some non-zero value
+ */
+ int step2 = ~step1;
+ /*
+ Returns 1 if the previous step gave us all zeros
+Returns 0 otherwise
+ */
+ int mainCheck = !step2;
+ /*
+ For -1 (1111...1111), ~x is 0000...0000, so !!() gives 0
+For all other numbers, ~x is non-zero, so !!() gives 1
+This eliminates the -1 case
+ */
+ int negOneCheck = !!(~x);
+ /*
+ Finally we AND these 2 together, since both conditions must be true
+ */
+return mainCheck & negOneCheck;
 }
+
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
  *   where bits are numbered from 0 (least significant) to 31 (most significant)
