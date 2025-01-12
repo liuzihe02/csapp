@@ -88,8 +88,8 @@ One common use of the bit-level operations is to implement masking operations, w
 C provides a set of logical operators `||`, `&&`, and `!`, which correspond to the Or, And, and Not operations of logic. Watch out to differentiate between bit operations `&` and logical operations `&&` - the two behave very differently!
 
   - these will always return `0` or `1`
-  - operate on `0` will return `False`
-  - operate on anything non-zero will return `True`
+  - `!` operate on value `0` will return `False`
+  - `!` operate on anything non-zero will return `True`
 
 ```
 Expression Result
