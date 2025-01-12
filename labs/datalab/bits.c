@@ -298,7 +298,13 @@ int isAsciiDigit(int x)
  */
 int conditional(int x, int y, int z)
 {
-  return 2;
+  // 1 if x is non-zero
+  int conBit = !!x;
+  // when conBit is 1, mask is 111....
+  // when conBit is 0, mask is 000....
+  int mask = ~(-1 + conBit);
+  // return the value
+  return (mask & y) | (~mask & z);
 }
 /*
  * isLessOrEqual - if x <= y  then return 1, else return 0
