@@ -280,17 +280,20 @@ int isAsciiDigit(int x)
   int middleCheck = !((x >> 4) ^ middleMask);
 
   // isolate the last 4 bits
-  int lastFour = x & 0b1111;
+  int lastFour = x & 0xF;
   // 1 if the -4th bit is 0
-  int fourCheck = !((lastFour >> 3) & 1);
+  int fourCheck = !(lastFour >> 3);
   // 1 if the last 4 bit pattern is 100x
-  int twoThreeCheck = !((lastFour >> 1) ^ 0b0100);
+  int twoThreeCheck = !((lastFour >> 1) ^ 0x4);
 
   return middleCheck & (fourCheck | twoThreeCheck);
 }
 
 /*
  * conditional - same as x ? y : z
+
+condition is for whether x is non-zero or zero
+
  *   Example: conditional(2,4,5) = 4
  *   Legal ops: ! ~ & ^ | + << >>
  *   Max ops: 16
@@ -302,10 +305,12 @@ int conditional(int x, int y, int z)
   int conBit = !!x;
   // when conBit is 1, mask is 111....
   // when conBit is 0, mask is 000....
-  int mask = ~(-1 + conBit);
+  // note that ~0 is the same as the value of -1 (111....11)
+  int mask = ~(~0 + conBit);
   // return the value
   return (mask & y) | (~mask & z);
 }
+
 /*
  * isLessOrEqual - if x <= y  then return 1, else return 0
  *   Example: isLessOrEqual(4,5) = 1.
@@ -315,8 +320,31 @@ int conditional(int x, int y, int z)
  */
 int isLessOrEqual(int x, int y)
 {
-  return 2;
+  /*
+  first check for differing signs and handle those cases
+  then assuming same signs, handle y-x is positive or negative
+  */
+
+  // Will be -1 (1111...) if negative
+  // 0 if positive (000...00)
+  // rmb arithmetic shift!
+  int sign_x = x >> 31;
+  int sign_y = y >> 31;
+  // 1 if signs are opposite
+  int signs_opp = !(~(sign_x ^ sign_y));
+  // 1 if y is positive
+  int is_y_pos = !(sign_y);
+
+  // the following assume same sign
+  // we use y+(~x+1) to compute y-x
+  // we use the negate function basically
+  int difference = y + (~x + 1);
+  // 1 if (y-x) is positive
+  int sign_difference = !(difference >> 31);
+
+  return (signs_opp & is_y_pos) | (!signs_opp & sign_difference);
 }
+
 // 4
 /*
  * logicalNeg - implement the ! operator, using all of
@@ -328,8 +356,26 @@ int isLessOrEqual(int x, int y)
  */
 int logicalNeg(int x)
 {
-  return 2;
+  /*
+Key idea: For any non-zero number x:
+- Either x or -x will have a 1 in the sign bit (MSB)
+- For zero, both x and -x will have 0 in the sign bit
+*/
+
+  // Get negative of x using two's complement
+  int neg_x = ~x + 1;
+
+  // Take sign bits of both x and -x using right shift
+  // For non-zero numbers, at least one of these will be 1
+  // For zero, both will be 0
+  int sign_bits = (x >> 31) | (neg_x >> 31);
+
+  // Add 1 to the sign_bits and mask with 1
+  // If x was 0: sign_bits = 0, result = 1
+  // If x was non-zero: sign_bits = -1, result = 0
+  return (sign_bits + 1) & 1;
 }
+
 /* howManyBits - return the minimum number of bits required to represent x in
  *             two's complement
  *  Examples: howManyBits(12) = 5
@@ -344,8 +390,61 @@ int logicalNeg(int x)
  */
 int howManyBits(int x)
 {
-  return 0;
+  /*
+  key insight is that for positive numbers, we need to find the leftmost 1
+  for negative numbers, need to find the leftmost 0 - the left 1 to this zero is the sign bit
+
+  note that for negative numbers, we have sign extension, where its all 1 leftwards from the sign bit
+
+  we use a binary search strategy for this. NOTE: VERY DIFFICULT QUESTION
+  */
+  int b16, b8, b4, b2, b1, b0;
+  int sign;
+
+  // Get sign of x
+  // if x positive, will be 0
+  // if x negative will be -1
+  sign = x >> 31;
+
+  // If x is negative, flip all bits to find most significant 0
+  // If x is positive, leave as is to find most significant 1
+  x = (sign & ~x) | (~sign & x);
+
+  // Binary search to find position of most significant 1
+  // First check if high 16 bits contain a 1
+  // >>16 gives us the high 16 bits
+  // !!(..) turns any non-zero value to 1 and keeps 0 as 0
+  // <<4 then shifts this 0 or 1 leftwards by 4 positions
+  /// so b16 will either be 16(0b10000) if a 1 exists, or 0 if the high bits were all 0
+  b16 = (!!(x >> 16)) << 4;
+  // Shift x right by 16 if a 1 exists in the high bits (check this top half)
+  // otherwise dont shift at all (check the bottom half)
+  x = x >> b16;
+
+  // Check if high 8 bits of remaining contain a 1
+  b8 = !!(x >> 8) << 3;
+  x = x >> b8;
+
+  // Check if high 4 bits of remaining contain a 1
+  b4 = !!(x >> 4) << 2;
+  x = x >> b4;
+
+  // Check if high 2 bits of remaining contain a 1
+  b2 = !!(x >> 2) << 1;
+  x = x >> b2;
+
+  // Check if high 1 bit of remaining contains a 1
+  b1 = !!(x >> 1);
+  x = x >> b1;
+
+  // Check if last bit is 1
+  b0 = x;
+
+  // Add 1 for sign bit
+  // this gives the location of the most significant 1 or 0
+  return b16 + b8 + b4 + b2 + b1 + b0 + 1;
 }
+
 // float
 /*
  * floatScale2 - Return bit-level equivalent of expression 2*f for
@@ -360,11 +459,40 @@ int howManyBits(int x)
  */
 unsigned floatScale2(unsigned uf)
 {
-  return 2;
+  // Extract components of float
+  // the & here gets rid of unneccessary stuff
+  unsigned sign = (uf >> 31) & 1;   // Get sign bit (1 bit)
+  unsigned exp = (uf >> 23) & 0xFF; // Get exponent (8 bits)
+  unsigned frac = uf & 0x7FFFFF;    // Get fraction (23 bits)
+
+  // Special case 1: If exp is all 1's (NaN or infinity), return unchanged
+  if (exp == 0xFF)
+  {
+    return uf;
+  }
+
+  // Special case 2: If number is denormalized (exp = 0)
+  if (exp == 0)
+  {
+    // Simply shift fraction left by 1 (effectively multiplying by 2)
+    frac = frac << 1;
+  }
+  // Normal case: number is normalized
+  else
+  {
+    exp = exp + 1; // Add 1 to exponent (equivalent to multiplying by 2)
+  }
+
+  // Reconstruct the float
+  return (sign << 31) | (exp << 23) | frac;
 }
+
 /*
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
  *   for floating point argument f.
+ *
+ *   basically need truncate the decimal parts
+ *
  *   Argument is passed as unsigned int, but
  *   it is to be interpreted as the bit-level representation of a
  *   single-precision floating point value.
@@ -376,8 +504,56 @@ unsigned floatScale2(unsigned uf)
  */
 int floatFloat2Int(unsigned uf)
 {
-  return 2;
+  // Extract components of float
+  unsigned sign = (uf >> 31) & 1;   // Get sign bit (1 bit)
+  unsigned exp = (uf >> 23) & 0xFF; // Get exponent (8 bits)
+  unsigned frac = uf & 0x7FFFFF;    // Get fraction (23 bits)
+
+  // Add implied 1 for normalized numbers, ie b 1000 00... 00
+  unsigned M = frac | 0x800000; // M is 1.fraction in binary
+
+  // Calculate E = exp - bias (bias is 127)
+  int E = exp - 127; // True exponent
+
+  // final result
+  int result;
+
+  // Special cases:
+  // 1. If exp is all 1's (NaN/infinity) or number is too large
+  if (exp == 0xFF || E > 31)
+  {
+    return 0x80000000u;
+  }
+
+  // 2. If E < 0, float is less than 1, truncates to 0
+  if (E < 0)
+  {
+    return 0;
+  }
+
+  // 3. If denormalized (exp = 0), result is 0
+  if (exp == 0)
+  {
+    return 0;
+  }
+
+  // Normal case: shift M based on E
+  // If E < 23, shift right to truncate decimal bits
+  // If E > 23, shift left to add zeroes
+
+  if (E < 23)
+  {
+    result = M >> (23 - E);
+  }
+  else
+  {
+    result = M << (E - 23);
+  }
+
+  // Apply sign
+  return sign ? -result : result;
 }
+
 /*
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
  *   (2.0 raised to the power x) for any 32-bit integer x.
@@ -393,5 +569,38 @@ int floatFloat2Int(unsigned uf)
  */
 unsigned floatPower2(int x)
 {
-  return 2;
+  // Remember: float = (-1)^sign * 2^(exp-bias) * 1.frac
+  // For 2^x, sign=0, frac=0, we just need to set exp correctly
+
+  // Some key values:
+  // Smallest normalized: 2^-126 (exp=1)
+  // Smallest denorm: 2^-149 (exp=0, frac=1)
+  // Largest normalized: 2^127 (exp=254)
+
+  // Handle numbers too small to represent
+  if (x < -149)
+  {
+    return 0; // Too small even for denormalized
+  }
+
+  // Handle numbers too large to represent
+  if (x > 127)
+  {
+    return 0xFF << 23; // Return +infinity (all 1s in exp, 0s in frac)
+  }
+
+  // Handle denormalized range (-149 <= x <= -127)
+  if (x <= -127)
+  {
+    // For denorms: exp=0, shift 1 into correct frac position
+    // We need to shift 1 left by (149+x) positions
+    // -149 -> shift by 0
+    // -148 -> shift by 1
+    // etc.
+    return 1 << (149 + x);
+  }
+
+  // Normal range (-126 <= x <= 127)
+  // exp = x + bias = x + 127
+  return (x + 127) << 23;
 }
