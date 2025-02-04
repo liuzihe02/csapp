@@ -75,7 +75,7 @@ For machine level programming:
 Parts of the processor state are visible that normally are hidden from the C programmer:
 
 * The *program counter* (commonly referred to as the “PC,” and called %eip in IA32) indicates the address in memory of the next instruction to be executed
-* The *integer register* file for x86-64 contains 16 named locations storing 64-bit values. Can hold addresses or data
+* The *integer register* for x86-64 contains 16 named locations storing 64-bit values. Can hold addresses or data. Only about 16 registers in a computer!
 * The *condition code registers* hold status information about the most recently executed arithmetic or logical instruction.
 * A set of *floating-point registers* store floating-point data.
 
@@ -215,6 +215,9 @@ addq $8,%rsp ;Increment stack pointer
 | `SAR` | k, D | D ← D >>ₐ k | Arithmetic right shift |
 | `SHR` | k, D | D ← D >>ₗ k | Logical right shift |
 
+`lea` or `leaq` calculates an address but doens't actually access memory
+- `lea 0x4(%rsp),%rbx` means to take the address in `%rsp`, add 4 to it, and put the new address in `%rbx`
+
 ## Control
 
 Machine code provides two basic low-level mechanisms for implementing conditional behavior: it tests data values and then either alters the control flow or the data flow based on the result of these tests.
@@ -316,11 +319,9 @@ Processors achieve high performance through **pipelining**, where an instruction
 
 Mispredicting a jump, on the other hand, requires that the processor discard much of the work it has already done on future instruction - can incur a serious penalty, say, 15-30 clock cycles of wasted effort, causing a serious degradation of program performance. Therefore conditional moves avoid branch mispredictions.
 
-
-
 ### Loops
 
-The general form of a do-while statement is as follows:
+The general form of a `do-while` statement is as follows:
 
 ```s
 do
@@ -340,7 +341,7 @@ loop:
 
 A key to understanding how the generated assembly code relates to the original source code is to find a mapping between program values and registers.
 
-The general form of a while statement is as follows:
+The general form of a `while` statement is as follows:
 
 ```s
 while (test-expr)
@@ -383,47 +384,3 @@ loop:
         goto loop;
 done:
 ```
-
-### Conditional Move Instructions
-
-|Instruction|Synonym|Move condition|Description|
-|-|-|-|-|
-|cmove S,R|cmovz|ZF|Equal/zero|
-|cmovne S,R|cmovnz|~ZF|Not equal/not zero|
-|cmovs S,R||SF|Negative|
-|cmovns S,R||~SF|Nonnegative|
-|cmovg S,R|cmovnle|~(SF^OF)&~ZF|Greater (signed >)|
-|cmovge S,R|cmovnl|~(SF^OF)|Greater or equal (signed >=)|
-|cmovl S,R|cmovnge|SF^OF|Less (signed <)|
-|cmovle S,R|cmovng|(SF^OF)\|ZF|Less or equal (signed <=)|
-|cmova S,R|cmovnbe|~CF&~ZF|Above (unsigned >)|
-|cmovae S,R|cmovnb|~CF|Above or equal (unsigned >=)|
-|cmovb S,R|cmovnae|CF|Below (unsigned <)|
-|cmovbe S,R|cmovna|CF\|ZF|Below or equal (unsigned <=)|
-
-Processors employ sophisticated branch prediction logic to try to guess whether or not each jump instruction will be followed. As long as it can guess reliably (modern microprocessor designs try to achieve success rates on the order of 90%), the instruction pipeline will be kept full of instructions. Mispredicting a jump, on the other hand, requires that the processor discard much of the work it has already done on future instructions and then begin filling the pipeline with instructions starting at the correct location. As we will see, such a misprediction can incur a serious penalty, say, 20–40 clock cycles of wasted effort, causing a serious degradation of program performance.
-
-To understand how conditional operations can be implemented via condi- tional data transfers, consider the following general form of conditional expression and assignment:
-
-```s
-v = test-expr ? then-expr : else-expr;
-```
-
-With traditional IA32, the compiler generates code having a form shown by the
-following abstract code:
-
-```s
-    if (!test-expr)
-        goto false;
-    v = true-expr;
-    goto done;
-false:
-    v = else-expr;
-done:
-```
-
-If one of those two expressions then-expr and else-expr could possibly generate an error condition or a side effect, this could lead to invalid behavior.
-
-### Switch Statements
-
-A jump table is an array where entry i is the address of a code segment implementing the action the program should take when the switch index equals i. The code performs an array reference into the jump table using the switch index to determine the target for a jump instruction.
