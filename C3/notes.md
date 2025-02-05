@@ -81,6 +81,10 @@ Parts of the processor state are visible that normally are hidden from the C pro
 
 The program memory contains the executable machine code for the program, some information required by the operating system, a run-time stack for managing procedure calls and returns, and blocks of memory allocated by the user (for example, by using the malloc library function).
 
+```
+Assembly Code (Instructions) ↔ Registers ↔ Memory (Stack/Heap/Static) ↔ I/O
+```
+
 ## Data Formats
 
 Size of C data types in x86-64:
@@ -288,7 +292,7 @@ The conventional way to implement conditional operations is through a conditiona
 
 Conditional Control:
 
-```cpp
+```c
 long absdiff(long x, long y) {
     long result;
     if (x < y) {
@@ -303,7 +307,7 @@ long absdiff(long x, long y) {
 
 Conditional Moves:
 
-```cpp
+```c
 long cmovdiff(long x, long y) {
     long rval = y - x;
     long eval = x - y;
@@ -384,3 +388,258 @@ loop:
         goto loop;
 done:
 ```
+
+## Procedures
+
+A procedure call involves passing both data (in the form of procedure parameters and return values) and control from one part of a program to another. It must allocate space for the local variables of the procedure on entry and deallocate them on exit.
+
+For example, suppose procedure `P` calls procedure `Q`, and `Q` then executes and returns back to `P`, These actions involve one or more of the following mechanisms:
+
+- *Passing control*: the PC must be set to the starting address of the code for `Q` upon entry and then set to the instruction in `P` following the call to `Q` upon return.
+- *Passing data*: `P` must be able to provide one or more parameters to `Q`, and `Q` must be able to return a value back to `P`.
+- *Allocating and deallocating memory*: `Q` may need to allocate space for local variables when it begin and then free that storage before it returns.
+
+### Run-Time Stack
+
+<img src="../images/C3_RunTimeStack.png" width =500>
+
+As mentioned previously, the x86-64 stack grows towards lower addresses with `%rsp` pointing towards the top element (lowest address) in the stack. Data stored and retrieved from stack using `pushq` and `popq`. Allocating space is simply decrementing stack pointer, and deallocating space is incrementing stack pointer.
+
+When x86-64 procedure requires storage beyond what it can hold in registers, it allocates space on the stack - this region is the procedure's *stack frame*. The frame for currently executing procedure is always at top of stack.
+
+When procedure `P` calls procedure `Q`, it will push the return address onto the stack, indicating where within `P` the program should resume execution once `Q` returns. We consider the return address to be part of `P`’s stack frame, since it holds state relevant to `P`.
+
+`call` pushes return address onto stack, and jumps to specified function (set up new stack frame). `ret` pops return address from stack, and jumps to that address. (`call` and `ret` work together to implement function calls while `jmp` is for simpler control flow)
+
+> Note that the program registers are shared by all procedures. When one procedure calls another, make sure the callee doesn't overwrite some register values the caller plans to use later.
+> * Registers `%eax, %edx, and %ecx` are classified as **caller-save (volatile) registers**. When procedure Q is called by P, it can overwrite these registers without destroying any data required by P.
+> * On the other hand, registers `%ebx, %esi, and %edi` are classified as **callee-save (non-volatile) registers**. This means that Q must save the values of any of these registers on the stack before overwriting them, and restore them before returning.
+
+## Array Allocation and Access
+
+One unusual feature of C is that we can generate pointers to elements within arrays and perform arithmetic with these pointers. These are translated into address computations in machine code. Optimizing compilers are particularly good at simplifying the address computations used by array indexing.
+
+### Basic Principles
+
+For data type `T` and integer constant `N`, consider a declaration:
+
+```c
+T A[N];
+```
+
+Let's denote the starting location as $x_A$. This declaration has two effects:
+1. Allocates a contiguous region of $L \cdot N$ bytes in memory, where $L$ is the size (in bytes) of data type `T`
+2. Introduces an identifier `A` that can be used as a pointer to the array's beginning, with value $x_A$
+
+Array elements can be accessed using integer indices from 0 to $N-1$. Array element $i$ will be stored at address $x_A + L \cdot i$.
+
+```c
+char    *B[8]; //access element i using x_B + 8*i
+int     C[6];
+```
+
+The x86-64 memory referencing instructions are designed to simplify array access. For example, if E is an array of type `int` and we want to evaluate `E[i]`, where the address of E is stored in register `%rdx` and i is stored in register `%rcx`, the instruction:
+
+```nasm
+movl (%rdx,%rcx,4),%eax
+```
+
+will perform the address computation $x_E + 4i$, read that memory location, and copy the result to register `%eax`. The allowed scaling factors of 1, 2, 4, and 8 cover the sizes of common primitive data types.
+
+### Pointer Arithmetic
+
+C allows arithmetic on pointers, where the computed value is scaled according to the size of the data type referenced by the pointer. That is, if `p` is a pointer to data of type $T$, and the value of `p` is $x_p$, then the expression `p+i` has value $x_p + L \cdot i$, where $L$ is the size of data type $T$.
+
+The unary operators `'&'` and `'*'` allow the generation and dereferencing of pointers:
+- For an expression `Expr` denoting some object, `&Expr` is a pointer giving the address of the object
+- For an expression `AExpr` denoting an address, `*AExpr` gives the value at that address
+- The expressions `Expr` and `*&Expr` are equivalent
+- The array subscripting operation can be applied to *both* arrays and pointers
+- Array reference `A[i]` is identical to expression `*(A+i)`
+
+Example with array `E` and integer index `i` stored in registers `%rdx` and `%rcx`:
+
+| Expression | Type | Value | Assembly code |
+|------------|------|-------|---------------|
+| E | int * | $x_E$ | movl %rdx,%rax |
+| E[0] | int | M[$x_E$] | movl (%rdx),%eax |
+| E[i] | int | M[$x_E + 4i$] | movl (%rdx,%rcx,4),%eax |
+| &E[2] | int * | $x_E + 8$ | leaq 8(%rdx),%rax |
+
+### Nested Arrays (Multi-Dimensional)
+
+A declaration like:
+```c
+int A[5][3];
+```
+
+is equivalent to:
+```c
+typedef int row3_t[3];
+row3_t A[5];
+```
+
+Data type `row3_t` is defined as an array of three integers. Array `A` contains five such elements, each requiring 12 bytes to store three integers. The total array size is $4 \cdot 5 \cdot 3 = 60$ bytes.
+
+Array elements are ordered in memory in row-major order. For an array declared as `T D[R][C]`, array element `D[i][j]` is at memory address:
+
+$\&D[i][j] = x_D + L(C \cdot i + j)$
+
+where $x_D$ is the starting address and $L$ is the size of data type $T$
+
+<img src="../images/C3_RowMajorOrder.png" width =350>
+
+For the example 5×3 integer array A, if $x_A$, `i`, and `j` are in registers `%rdi`, `%rsi`, and `%rdx` respectively, the element can be copied to register `%eax` by:
+
+```nasm
+; A in %rdi, i in %rsi, and j in %rdx
+leaq    (%rsi,%rsi,2), %rax    ; Compute 3i
+leaq    (%rdi,%rax,4), %rax    ; Compute x_A + 12i
+movl    (%rax,%rdx,4), %eax    ; Read from M[x_A + 12i + 4j]=x_A + 4(3i + j)
+```
+
+### Fixed-Size Arrays
+
+Here's the original C code computing element i,k of a matrix product:
+
+```c
+/* Compute i,k of fixed matrix product */
+int fix_prod_ele(fix_matrix A, fix_matrix B, long i, long k) {
+    long j;
+    int result = 0;
+    
+    for (j = 0; j < N; j++)
+        result += A[i][j] * B[j][k];
+        
+    return result;
+}
+```
+
+And here's the optimized version using pointer arithmetic (compiler does this automatically):
+
+```c
+/* Compute i,k of fixed matrix product */
+int fix_prod_ele_opt(fix_matrix A, fix_matrix B, long i, long k) {
+    int *Aptr = &A[i][0];      /* Points to elements in row i of A    */
+    int *Bptr = &B[0][k];      /* Points to elements in column k of B */
+    int *Bend = &B[N][k];      /* Marks stopping point for Bptr       */
+    int result = 0;
+    
+    do {
+        result += *Aptr * *Bptr;   /* Add next product to sum */
+        Aptr++;                    /* Move Aptr to next column */
+        Bptr += N;                 /* Move Bptr to next row    */
+    } while (Bptr != Bend);        /* Test for stopping point */
+    
+    return result;
+}
+```
+
+The actual assembly code generated by GCC:
+
+```nasm
+; Function fix_prod_ele
+; Parameters (x64 calling convention):
+;   %rdi - pointer to matrix A
+;   %rsi - pointer to matrix B 
+;   %rdx - index i
+;   %rcx - index k
+
+fix_prod_ele:
+    salq    $6, %rdx               ; i *= 64 (scale i to get row offset)
+    addq    %rdx, %rdi             ; A += 64*i (advance to row i of A)
+    leaq    (%rsi,%rcx,4), %rcx    ; B += 4*k (advance to column k of B) 
+    leaq    1024(%rcx), %rsi       ; Compute end = B + 4*k + 1024 (end of column)
+    movl    $0, %eax               ; Initialize sum = 0
+
+.L7:                               ; Main loop start
+    movl    (%rdi), %edx           ; Load A[i][j]
+    imull   (%rcx), %edx           ; Multiply by B[j][k]
+    addl    %edx, %eax             ; Add product to running sum
+    addq    $4, %rdi               ; A++ (move to next element in row)
+    addq    $64, %rcx              ; B += 16 (move to next row of B)
+    cmpq    %rsi, %rcx             ; Check if reached end of column
+    jne     .L7                    ; If not at end, continue loop
+    rep; ret                       ; Return sum in %eax
+```
+
+1. **Elimination of Index Calculations**: 
+   - Original version: Must compute `A[i][j]` and `B[j][k]` on each iteration, requiring multiplication and addition for each array access
+   - Optimized version: Uses pointers that increment linearly through memory, requiring only simple pointer arithmetic (`Aptr++` and `Bptr += N`)
+
+2. **Memory Access Pattern**:
+   - Original version: Accessing `B[j][k]` jumps across rows, leading to poor cache performance
+   - Optimized version: `Aptr` accesses memory sequentially, and `Bptr` uses a fixed stride (`N`), which is more cache-friendly
+
+## Heterogeneous Data Structures
+
+C provides two mechanisms for creating data types by combining objects of different types: structures, declared using the keyword `struct`, aggregate multiple objects into a single unit; unions, declared using the keyword `union`, allow an object to be referenced using several different types.
+
+### Structures
+
+The `struct` data type constructor is the closest thing C provides to the objects of C++ and Java.
+
+```c
+struct rect {
+    long llx;          /* X coordinate of lower-left corner */
+    long lly;          /* Y coordinate of lower-left corner */
+    unsigned color;     /* Coding of color                  */
+};
+
+//declaring a variable of the type rect
+struct rect r;
+r.llx = r.lly = 0; //select the fields
+r.color = 0xFF00FF;
+```
+
+It is common to pass pointers to structures from one place to another rather than copying them. For example, the following function computes the area of a rectangle, where a pointer to the rectangle struct is passed to the function:
+
+```c
+long area(struct rect *rp) {
+    return (*rp).width * (*rp).height;
+}
+```
+
+The expression `(*rp).width` dereferences the pointer and selects the `width` field of the resulting structure. Parentheses are required, because the compiler would interpret the expression `*rp.width` as `*(rp.width)`, which is not valid. This combination of dereferencing and field selection is so common that C provides an alternative notation using `->`. That is, `rp->width` is equivalent to the expression `(*rp).width`
+
+#### Assembly Level Structures
+
+The implementation of structures is similar to that of arrays in that all of the components of a structure are stored in a contiguous region of memory and a pointer to a structure is the address of its first byte. The compiler maintains information about each structure type indicating the byte offset of each field. It generates references to structure elements using these offsets as displacements in memory referencing instructions.
+
+```c
+struct rec {
+    int i;
+    int j;
+    int a[2];
+    int *p;
+};
+```
+
+This structure contains four fields: two 4-byte values of type `int`, a two-element array of type `int`, and an 8-byte integer pointer, giving a total of 24 bytes:
+
+```
+Offset  0        4        8                 16                 24
+        +--------+--------+--------+--------+------------------+
+        |   i    |   j    |  a[0]  |  a[1]  |        p        |
+        +--------+--------+--------+--------+------------------+
+```
+
+Numbers at the top indicate the byte offsets of elements. To access the fields of a structure, the compiler generates code that adds the appropriate offset to the address of the structure. For example, suppose variable `r` of type `struct rec *` is in register `%rdi`. Then the following code copies element `r->i` to element `r->j`:
+
+```nasm
+# Registers: r in %rdi
+movl    (%rdi), %eax          ; Get r->i
+; To store into field `j`, the code adds offset 4 to the address of `r`.
+movl    %eax, 4(%rdi)         ; Store in r->j 
+```
+
+To generate a pointer to an element within a structure, we can simply add the field's offset to the structure address. For example, we can generate the pointer `&(r->a[1])` by adding offset 8 + 4 · 1 = 12. For pointer `r` in register `%rdi` and long integer variable `i` in register `%rsi`, we can generate the pointer value `&(r->a[i])` with the single instruction:
+
+```nasm
+;Registers: r in %rdi, i %rsi
+leaq    8(%rdi,%rsi,4), %rax  ; Set %rax to &r->a[i]
+```
+
+> Selection of the different fields of a structure is handled completely at compile time. The machine code contains no information about the field declarations or the names of the fields.
+
+### Data Alignment
