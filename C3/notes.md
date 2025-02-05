@@ -575,7 +575,7 @@ fix_prod_ele:
 
 C provides two mechanisms for creating data types by combining objects of different types: structures, declared using the keyword `struct`, aggregate multiple objects into a single unit; unions, declared using the keyword `union`, allow an object to be referenced using several different types.
 
-### Structures
+### Struct
 
 The `struct` data type constructor is the closest thing C provides to the objects of C++ and Java.
 
@@ -602,7 +602,7 @@ long area(struct rect *rp) {
 
 The expression `(*rp).width` dereferences the pointer and selects the `width` field of the resulting structure. Parentheses are required, because the compiler would interpret the expression `*rp.width` as `*(rp.width)`, which is not valid. This combination of dereferencing and field selection is so common that C provides an alternative notation using `->`. That is, `rp->width` is equivalent to the expression `(*rp).width`
 
-#### Assembly Level Structures
+### Machine Level Struct
 
 The implementation of structures is similar to that of arrays in that all of the components of a structure are stored in a contiguous region of memory and a pointer to a structure is the address of its first byte. The compiler maintains information about each structure type indicating the byte offset of each field. It generates references to structure elements using these offsets as displacements in memory referencing instructions.
 
@@ -643,3 +643,132 @@ leaq    8(%rdi,%rsi,4), %rax  ; Set %rax to &r->a[i]
 > Selection of the different fields of a structure is handled completely at compile time. The machine code contains no information about the field declarations or the names of the fields.
 
 ### Data Alignment
+
+Many computer systems place restrictions on the allowable addresses for the
+primitive data types, requiring that the address for some objects must be a multiple
+of some value $K$. If we can guarantee that any double will be aligned to have its address be a multiple of 8, then the value can be read or written with a single memory operation. Otherwise, we may need to perform two memory accesses, since the object might be split across two 8-byte memory blocks.
+
+X86 alignment rule requires any primitive object of $K$ bytes must have an address that is a multiple of $K$. Hence addresses for `int` and `float` must be a multiple of 4, `long` and `double` must be a multiple of 8. The compiler may even add gaps in between elements in a `struct` to make sure every element adheres to the alignment rule
+
+## Combining Control and Data in Machine Level Programs
+
+### Pointers
+
+Pointers are a uniform way to generate references to elements within different data structures.
+
+- Every pointer has an associated type, indicating what kind of object the pointer points to. For example, `int* p;` means the variable `p`  is a pointer to an object of type `int`. The special `void*` type represents a generic pointer, which is converted to a typed pointer via either an explicit cast or by the implicit casing of the assignment operation.
+- Every pointer has a value. The value is an address of some object of the designated type. The special value `NULL` indicates the pointer does not point anywhere
+- Pointers are created with the `&` operator. THe machine code realization of the `&` operator often uses the `leaq` instruction to compute the address.
+- Arrays and pointers are closely related. For example, `int a[3];`, the var `a` has the exact same effect as pointer arithmetic and dereferencing `*(a+3)`. remember pointer arithmetic requiring scaling the offsets by the object size `p+i` for pointer `p` computes $p+L*i$
+- Casting from one type of pointer to another changes its type but not its value. One effect of casting it to change any scaling of pointer arithmetic. For example, if `char* p`, then expression `(int *)p + 7;` computes `p + 28;`, while `(int*)(p+7);` computes `p+7;`.
+- Pointers can also point to functions. For example, if we have a function defined by the prototype: `int fun(int x, int* p);`, then we can declare and assign a pointer `fp` to this function by the following code sequence: `int (*fp)(int, int*); fp = fun;`, we can then invoke the function using this pointer: `int y = 1; int result = fp(3, &y)`.
+
+### Out-of-Bounds Memory References and Buffer Overflow
+
+**C does not perform any bounds checking for array references**, and that local variables are stored on the stack along with state information such as saved register values and return addresses. This combination can lead to serious program errors, where the state stored on the stack get corrupted by a write to an out-of-bounds array element.
+
+A particularly common source of state corruption is known as **buffer overflow**. Typically, some character array is allocated on the stack to hold a string, but the size of the string exceeds the space allocated for the array.
+
+For example:
+
+```c
+// s points to the first character of this string
+char* gets(char* s) {
+    // It copies this string to the location designated by argument `s` 
+    // and terminates the string with a null character.
+
+    // has no way to know size of buffer its writing too
+    int c;
+    // creates a temporary pointer initialized to start of buffer
+    // will increase pointer while s is unchanges
+    char* dest = s;
+    //getchar reads one character from standard input
+    while ((c = getchar()) != '\n' && c != EOF) {
+        //stores the read char in the location pointed to next position
+        // store first, then increment
+        *dest++ = c;
+    }
+    if (c == EOF && dest == s) {
+        // no characters read
+        return NULL;
+    }
+    *dest++ = '\0'; // Terminate string
+    return s;
+}
+
+void echo() {
+    //creates a character arry of size 8
+    char buf[8];
+    gets(buf);
+    puts(buf);
+}
+```
+
+`echo` function has a serious problem, It reads a line from the standard input, stopping when either a terminating newline character or some condition is encountered. The problem with `gets` is that it has no way to determine whether sufficient space has been allocated to hold the entire string, any string longer than the len of `buf` will cause an out-of-bounds write.
+
+
+**Stack Organization**
+When `echo()` is called, the stack frame is organized from higher to lower memory addresses as follows:
+
+```
+Higher addresses
++------------------+
+| Caller's state   |
+| Return address   |
+| Unused space     |
+| buf[7]          |
+| buf[6]          |
+| buf[5]          |
+| buf[4]          |
+| buf[3]          |
+| buf[2]          |
+| buf[1]          |
+| buf[0]          |
++------------------+
+Lower addresses
+```
+
+1. **Limited Buffer Allocation**
+   - `char buf[8]` allocates 8 bytes on the stack
+   - This means it can hold 7 characters plus a null terminator (`\0`)
+   - The buffer grows from lower to higher memory addresses
+
+2. **No Bounds Checking**
+   - `gets()` has no way to know the size of `buf`
+   - It will keep writing characters until it encounters a newline or EOF
+   - C doesn't perform any array bounds checking
+
+3. **Memory Corruption Sequence**
+   * When user types 0-7 characters:
+     - Data fits within `buf`, no overflow occurs
+   
+   * When user types 8-23 characters:
+     - Data overflows `buf`
+     - Writes into unused stack space
+     - System may still function but stack memory is corrupted
+   
+   * When user types 24-31 characters:
+     - Overwrites the return address
+     - When `echo()` tries to return, it will jump to an invalid address
+     - Likely causes program crash or unpredictable behavior
+   
+   * When user types 32+ characters:
+     - Corrupts caller's saved state
+     - Can modify saved register values and other critical data
+     - May lead to program crashes or security vulnerabilities
+
+4. **Security Implications**
+   - An attacker can carefully craft input to:
+     - Override the return address with a specific value
+     - Redirect program execution to malicious code
+     - This is the basis for many buffer overflow attacks
+
+**Best Practices to Prevent Buffer Overflow**
+
+1. Never use `gets()` - it's so dangerous it's been removed from modern C standards
+2. Use bounds-checking alternatives:
+   - `fgets(buf, sizeof(buf), stdin)` limit the max number of bytes to read
+   - `strncpy()` instead of `strcpy()`
+3. Verify input lengths before writing to buffers
+
+
