@@ -20,7 +20,7 @@ Our hello program begins life as a *source program* that the programmer creates 
 
 The *GCC* compiler driver reads the source file *hello.c* and translates it into an executable object file *hello*, via 4 phases in the compilation system:
 
-<img src="../images/C1_Fig1.3.png" width=600>
+<img src="images/C1_Fig1.3.png" width=600>
 
 * **Preprocessing phase**. The pre-processor (cpp) modifies the original C program according to directives that begin with the # character. The result is another C program, typically with the .i suffix.
 * **Compilation phase**. The compiler (cc1) translates the text file *hello.i* into the text file *hello.s*, which contains an *assembly-language program*. Each statement in an assembly-language program exactly describes one low-level machine-language instruction in a standard text form. Assembly language is useful because it provides a common output language for different compilers for different high-level languages.
@@ -43,7 +43,7 @@ The *shell* is a command-line interpreter that prints a prompt, waits for you to
 
 ### Hardware Organization of a System
 
-<img src="../images/C1_Fig1.4.png" width=700>
+<img src="images/C1_Fig1.4.png" width=700>
 
 * **Buses**. Buses are typically designed to transfer fixed-sized chunks of bytes known as *words*.
 * **Input/output** (I/O) devices are the system's connection to the external world. Each I/O device is connected to the I/O bus by either a *controller* or an *adapter*. The distinction between the two is mainly one of packaging. *Controllers* are chip sets in the device itself or on the system's main printed circuit board (often called *motherboard*). An *adapter* is a card that plugs into a slot on the motherboard.
@@ -62,7 +62,7 @@ To deal with the processor-memory gap, system designers include smaller faster s
 
 ## Storage Devices Form a Hierarchy
 
-<img src="../images/C1_Fig1.9.png" width=700>
+<img src="images/C1_Fig1.9.png" width=700>
 
 The main idea of a memory hierarchy is that storage at one level serves as a cache for storage at the next lower level. Thus, the register file is a cache for the L1 cache. Caches L1 and L2 are caches for L2 and L3, respectively. The L3 cache is a cache for the main memory, which is a cache for the disk. On some networked systems with distributed file systems, the local disk serves as a cache for data stored on the disks of other systems.
 
@@ -72,7 +72,7 @@ We can think of the operating system as a layer of software interposed between t
 
 The operating system has two primary purposes: (1) to protect the hardware from misuse by runaway applications, and (2) to provide applications with simple and uniform mechanisms for manipulating complicated and often wildly different low-level hardware devices.
 
-<img src="../images/C1_Fig1.18.png" width=700>
+<img src="images/C1_Fig1.18.png" width=700>
 
 As this figure suggests, files are abstractions for I/O devices, virtual memory is an abstraction for both the main memory and disk I/O devices, and processes are abstractions for the processor, main memory, and I/O devices.
 
@@ -88,7 +88,7 @@ In modern systems a process can actually consist of multiple execution units, ca
 
 *Virtual memory* is an abstraction that provides each process with the illusion that it has exclusive use of the main memory. Each process has the same uniform view of memory, which is known as its *virtual address space*. The virtual address space for Linux processes is shown:
 
-<img src="../images/C1_Fig1.13.png" width=600>
+<img src="images/C1_Fig1.13.png" width=600>
 
 * *Program code and data*. Code begins at the same fixed address for all processes, followed by data locations that correspond to global C variables. The code and data areas are initialized directly from the contents of an executable object file, in our case the *hello* executable.
 * *Heap*. The code and data areas are followed immediately by the run-time heap. Unlike the code and data areas, which are fixed in size once the process begins running, the heap expands and contracts dynamically at run time as a result of calls to C standard library routines such as *malloc* and *free*.

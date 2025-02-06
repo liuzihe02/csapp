@@ -33,7 +33,7 @@ Depending on $w$, different data types use diferent number of bits in C.
   - If variable `x` of type `int` (32-bit) has address `0x100`
   - Hence it has 4 bytes, first byte stored in `0x100`, then `0x101`, `0x102`, `0x103`
 
-<img src="../images/C2_Addressing.png" width=600>
+<img src="images/C2_Addressing.png" width=600>
 
 ```
 big endian := the most significant byte comes first (IBM and Sun Microsystems machines)
@@ -198,7 +198,7 @@ For the same bit representation, the below functions convert the corresponding n
 
 **Two's to Unsigned**
 
-<img src="../images/C2_T2U.png" width =400>
+<img src="images/C2_T2U.png" width =400>
 
 $$
 T2U_w(x) = \begin{cases} 
@@ -209,7 +209,7 @@ $$
 
 **Unsigned to Two's**
 
-<img src="../images/C2_U2T.png" width =400>
+<img src="images/C2_U2T.png" width =400>
 
 $$
 U2T_w(u) = \begin{cases}
@@ -256,7 +256,7 @@ Due to fixed size of binary digits, we'd have to truncate the leftmost bits, whe
 
 ### Addition / Negation
 
-<img src="../images/C2_RegAdd.png" width =500>
+<img src="images/C2_RegAdd.png" width =500>
 
 Regular integer addition with only 4 bits may result in a sum requiring 5 bits to represent (shown above). We hence introduce fixed-size addition.
 
@@ -276,7 +276,7 @@ x + y - 2^w, & 2^w \leq x + y < 2^{w+1} & \text{Overflow}
 \end{cases}
 $$
 
-<img src="../images/C2_UAdd.png" width =500>
+<img src="images/C2_UAdd.png" width =500>
 
 > An arithmetic operation is said to overflow when the full integer result cannot
 fit within the word size limits of the data type
@@ -308,7 +308,7 @@ x + y + 2^w, & x + y < -2^{w-1} & \text{Negative overflow}
 \end{cases}
 $$
 
-<img src="../images/C2_TAdd.png" width =500>
+<img src="images/C2_TAdd.png" width =500>
 
 #### Two's Complement Negation
 
@@ -378,7 +378,7 @@ However, unlike multiplication, we can't express division by arbitrary constants
 
 ### Fractional Binary Numbers
 
-<img src="../images/C2_FracBin.png" width =400>
+<img src="images/C2_FracBin.png" width =400>
 
 We can represent fractions in binary,  $b = \sum_{k=-j}^i 2^k * b_k$. Bits to the right of the binary point represent powers of 2.
 - we can only have one setting of the binary point, so limited range of numbers
@@ -389,7 +389,7 @@ The IEEE floating-point standard represents a number in a form
 
 $$V = (−1)^s × M × 2^E$$
 
-<img src="../images/C2_fpformat.png" width =400>
+<img src="images/C2_fpformat.png" width =400>
 
 * single sign bit `s` encodes the sign $s$
 * `k`-bit exponent field `exp` encodes the exponent $E$
@@ -436,7 +436,7 @@ Condition `exp=11...11`:
   - Used when no numeric value exists
   - Examples: $\sqrt{-1}$, $\infty - \infty$, $\infty \times 0$
 
-<img src="../images/C2_FPSpacing.png" width =500>
+<img src="images/C2_FPSpacing.png" width =500>
 
 Note the numbers represented are not spaced evenly.
 

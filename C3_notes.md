@@ -182,7 +182,7 @@ stored in memory locations. Register access is much faster than memory access.
 
 ## Pushing and Popping Stack
 
-<img src="../images/C3_Stack.png" width =500>
+<img src="images/C3_Stack.png" width =500>
 
 The stack grows downwards here, so the "top" of the stack is at the lowest address. The stack pointer `%rsp` holds the address of the top stack element. The `pushq` instruction provides the ability to push data onto the stack, while the `popq` instruction pops it. 
 
@@ -401,7 +401,7 @@ For example, suppose procedure `P` calls procedure `Q`, and `Q` then executes an
 
 ### Run-Time Stack
 
-<img src="../images/C3_RunTimeStack.png" width =500>
+<img src="images/C3_RunTimeStack.png" width =500>
 
 As mentioned previously, the x86-64 stack grows towards lower addresses with `%rsp` pointing towards the top element (lowest address) in the stack. Data stored and retrieved from stack using `pushq` and `popq`. Allocating space is simply decrementing stack pointer, and deallocating space is incrementing stack pointer.
 
@@ -487,7 +487,7 @@ $\&D[i][j] = x_D + L(C \cdot i + j)$
 
 where $x_D$ is the starting address and $L$ is the size of data type $T$
 
-<img src="../images/C3_RowMajorOrder.png" width =350>
+<img src="images/C3_RowMajorOrder.png" width =350>
 
 For the example 5×3 integer array A, if $x_A$, `i`, and `j` are in registers `%rdi`, `%rsi`, and `%rdx` respectively, the element can be copied to register `%eax` by:
 
