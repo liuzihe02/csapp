@@ -185,4 +185,148 @@ After cache at level *k* has fetched the relevant block from level *k+1*, progra
 - For machine with distributed file systems like Andrew File System (AFS), local disk is a cache managed by AFS client process
 
 Exploiting temporal locality: Cache recent objects
-Exploiting spatial locality: cache blocks instead of single data objects, so other objects within block which may be requested often are easily accessible
+Exploiting spatial locality: cache blocks instead of single data objects, so other objects within block, which may be requested often, are easily accessible
+
+## Cache Memories
+
+The memory hierarchies of early computers only consisted 3 levels: CPU registers, main memory, and disk storage. However, due to increasing gap between CPU and main memory, system designers had to insert a small SRAM cache memory (L1 cache) between the CPU registers and main memory.
+
+### Generic Cache Memory Organization
+
+<img src="images/C6_CacheOrg.png" width =600>
+
+- Each memory address has $m$ bits that form $M=2^m$ unique addresses
+- There are $s=2^s$ number of cache sets
+- Each set consists of $E$ cache lines
+- Each line consists a data *block* of $B=2^b$ bytes
+- A single valid bit indicates if the line has meaningful information
+- $t=m-(b+s)$ *tag bits* uniquely identify which line is stored in
+
+A cache's organization is characterized by $(S,E,B.m)$ where the cache capacity is $C=S*E*B$.
+
+Suppose we request for data at address $A$:
+- The *s* set index bits tell us which set out of $S$ sets the word (byte here) is located in.
+- The *t* tag bits tell us which line out of $E$ lines the word is located in
+  - A line in the set matches the word if and only if valid bit is set and tag bits in the line matches tag bits in address $A$
+- Once we've located the line, then the *b block offset bits* give us the offset of the word in the $B$-byte data block
+
+| Parameter | Description |
+|-----------|-------------|
+| **Fundamental parameters** | |
+| S = 2ˢ | Number of sets |
+| E | Number of lines per set |
+| B = 2ᵇ | Block size (bytes) |
+| m = log₂(M) | Number of physical (main memory) address bits |
+| **Derived quantities** | |
+| M = 2ᵐ | Maximum number of unique memory addresses |
+| s = log₂(S) | Number of set index bits |
+| b = log₂(B) | Number of block offset bits |
+| t = m - (s + b) | Number of tag bits |
+| C = B × E × S | Cache size (bytes), not including overhead such as the valid and tag bits |
+
+Caches are grouped into different classes based on $E$m the number of cache lines per set.
+
+### Direct-Mapped Caches
+
+A cache with exactly one line per set ($E=1$) is known as direct mapped cache.
+
+<img src="images/C6_DirectMapCache.png" width =700>
+
+When a cache checks if a request is a hit/miss and extract the requested word *w*, the process is:
+
+1. Set Selection
+   - Extract the *s* set index bits
+2. Line-Matching
+   - Since there is only one line per set, a copy of *w* is contained in the line if and only if the valid bit is set and the cache line tag matches the tag in the address of *w*
+3. Word Selection
+   - Use block offset bits to provide us with offset of the *first byte* in the desired word (here, a word is 4 bytes)
+
+> Concatenation
+
+#### Cache Misses
+
+If the cache misses, it needs to retrieve requested block from next level in the memory hierarchy and store the new block in a relevant cache line; here's there's only one choice for the cache line.
+
+#### Example
+
+This example demonstrates how a direct-mapped cache works with the following parameters:
+- (S, E, B, m) = (4, 1, 2, 4)
+- 4 sets (S = 4)
+- 1 line per set (E = 1)
+- 2 bytes per block (B = 2)
+- 4-bit addresses (m = 4)
+
+| Address (decimal) | Tag bits (t=1) | Index bits (s=2) | Offset bits (b=1) | Block number (decimal) |
+|------------------|----------------|------------------|-------------------|----------------------|
+| 0                | 0              | 00               | 0                 | 0                    |
+| 1                | 0              | 00               | 1                 | 0                    |
+| 2                | 0              | 01               | 0                 | 1                    |
+| 3                | 0              | 01               | 1                 | 1                    |
+| 4                | 0              | 10               | 0                 | 2                    |
+| 5                | 0              | 10               | 1                 | 2                    |
+| 6                | 0              | 11               | 0                 | 3                    |
+| 7                | 0              | 11               | 1                 | 3                    |
+| 8                | 1              | 00               | 0                 | 4                    |
+| 9                | 1              | 00               | 1                 | 4                    |
+| 10               | 1              | 01               | 0                 | 5                    |
+| 11               | 1              | 01               | 1                 | 5                    |
+| 12               | 1              | 10               | 0                 | 6                    |
+| 13               | 1              | 10               | 1                 | 6                    |
+| 14               | 1              | 11               | 0                 | 7                    |
+| 15               | 1              | 11               | 1                 | 7                    |
+
+> Combination of tag and index bits uniquely identify each block in the memory
+> Since there are 8 memory blocks but only 4 cache sets, multiple blocks map to the same cache set; may cause conflict misses
+> Blocks mapping to the same cache set are uniquely identified by the tag
+
+**Initial Cache State**
+
+The cache starts empty with all valid bits set to 0:
+
+| Set | Valid | Tag | block[0] | block[1] |
+|-----|--------|-----|----------|-----------|
+| 0   | 0      |     |          |           |
+| 1   | 0      |     |          |           |
+| 2   | 0      |     |          |           |
+| 3   | 0      |     |          |           |
+
+**1. Read word at address 0**: Since the valid bit for set 0 is 0, this is a cache miss. Will fetch block 0 from lower level cache and store block 0 in set 0. Cache returns `m[0]`, contents of memory location 0.
+
+| Set | Valid | Tag | block[0] | block[1] |
+|-----|--------|-----|----------|-----------|
+| 0   | 1      | 0   | m[0]     | m[1]      |
+| 1   | 0      |     |          |           |
+| 2   | 0      |     |          |           |
+| 3   | 0      |     |          |           |
+
+**2. Read word at address 1**: Cache hit. Cache immediately returns `m[1]`
+
+**3. Read word at address 13**: Cache line in set 2 not valid, so cache miss. Cache loads block 6 into set 2 and returns `m[13]`
+
+| Set | Valid | Tag | block[0] | block[1] |
+|-----|--------|-----|----------|-----------|
+| 0   | 1      | 0   | m[0]     | m[1]      |
+| 1   | 0      |     |          |           |
+| 2   | 1      | 1   | m[12]    | m[13]     |
+| 3   | 0      |     |          |           |
+
+**4. Read word at address 8**: Conflict cache miss. While the cache line in set 0 is valid, tag don't match. Cache loads block 4 into set 0 and returns `m[8]`
+
+| Set | Valid | Tag | block[0] | block[1] |
+|-----|--------|-----|----------|-----------|
+| 0   | 1      | 1   | m[8]     | m[9]      |
+| 1   | 0      |     |          |           |
+| 2   | 1      | 1   | m[12]    | m[13]     |
+| 3   | 0      |     |          |           |
+
+**5.Read word at address 0**: Another conflict cache miss. We just replaced block 0 with block 4, but we need block 4 again; both blocks maps to the same set.
+
+| Set | Valid | Tag | block[0] | block[1] |
+|-----|--------|-----|----------|-----------|
+| 0   | 1      | 1   | m[0]     | m[1]      |
+| 1   | 0      |     |          |           |
+| 2   | 1      | 1   | m[12]    | m[13]     |
+| 3   | 0      |     |          |           |
+
+> Thrashing describes a situation where cache is repeatedly loading and evicting the same sets of cache blocks, thrash back and forth between loading and evicting
+> Can add padding to change the address such that the blocks no longer map to the same sets
