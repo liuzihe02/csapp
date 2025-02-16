@@ -1,12 +1,24 @@
 #include "cachelab.h"
+#include <ctype.h>
 #include <getopt.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-// Global variables
-int s, E, b;     // Cache parameters
-char* tracefile; // Trace file name
-int verbose = 0; // Verbose flag
+// global variables
+int hits;
+int misses;
+int evictions;
+
+// config variables
+typedef struct cache_config {
+  int s;           // Number of set index bits
+  int E;           // Associativity (lines per set)
+  int b;           // Number of block bits
+  char* tracefile; // Path to the tracefile
+  int verbose;     // Verbose mode flag
+} cache_config_t;
 
 /** Chapter 6 Part A: Cache Simulator
  *
@@ -39,7 +51,13 @@ typedef struct cache_line {
   // tag bits are always 64bit here
   // unsigned long long guarantees 64 bits on all platforms
   unsigned long long tag;
-  // use cache_line_t here as a placeholder for the typedef of the cache_line struct
+  // LRU implementation
+  //  this tracks how long a line was last accessed
+  //  loop increased the time for all lines
+  //  once its accessed, reset the time to 0
+  //  when evicting, choose the one with the highest time
+  unsigned int time;
+  // use cache_line_t here as a placeholder for the typedef of the cache_line struct]
 } cache_line_t;
 
 /**
@@ -79,6 +97,7 @@ cache_set_t* cache_set_init(int E) {
   for (int i = 0; i < E; i++) {
     new_set->lines[i].valid = 0;
     new_set->lines[i].tag = 0;
+    new_set->lines[i].time = 0;
   }
   return new_set;
 }
@@ -122,9 +141,78 @@ cache_t* cache_init(int s, int E, int b) {
   return cache;
 }
 
-// helper function to print usage
+// Simulate cache behaviour by doing appropriate load and stores
+void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
+                    unsigned long long address) {
+
+  // Extract set index and tag from address
+
+  // creates a mask of ones with s bits all set to one. if s is 3, then mask is 0b111
+  unsigned int index_mask = (1 << config->s) - 1;
+  // shift to right the block offset bits. then take the s bits
+  unsigned int set_index = (address >> config->b) & index_mask;
+  unsigned long long tag = address >> (config->s + config->b);
+  cache_set_t* set = cache->sets[set_index];
+
+  // Search for hit
+
+  // flag to indicate if hit
+  int hit = 0;
+  for (int i = 0; i < cache->E; i++) {
+    if (set->lines[i].valid && set->lines[i].tag == tag) {
+      hit = 1;
+      // reset time
+      set->lines[i].time = 0;
+      hits++;
+      break;
+    } else {
+      // add to time
+      set->lines[i].time += 1;
+    }
+  }
+
+  // Handle miss
+  if (!hit) {
+    misses++;
+    int placed = 0;
+    for (int i = 0; i < cache->E; i++) {
+      // search for an invalid line (empty) and place it there
+      if (!set->lines[i].valid) {
+        set->lines[i].valid = 1;
+        set->lines[i].tag = tag;
+        placed = 1;
+        break;
+      }
+    }
+
+    // If no empty slot, evict
+    if (!placed) {
+      evictions++;
+      // do LRU and replace the highest one
+      int max_idx = -1;
+      int max_time = 0;
+      for (int i = 0; i < cache->E; i++) {
+        if (set->lines[i].time > max_time) {
+          max_time = set->lines[i].time;
+          max_idx = i;
+          break;
+        }
+      }
+      if (max_idx != -1) {
+        // evict accordingly by replacing tag
+        set->lines[max_idx].tag = tag;
+      }
+    }
+
+    // Modify operation ('M' means load + store, so always an extra hit)
+    // else its just the same as before
+    if (operation == 'M') {
+      hits++;
+    }
+  }
+}
+
 void print_usage(char* prog_name) {
-  // program name is the %s
   printf("Usage: %s [-hv] -s <s> -E <E> -b <b> -t <tracefile>\n", prog_name);
   printf("  -h  : Print this help message\n");
   printf("  -v  : Enable verbose output\n");
@@ -134,46 +222,85 @@ void print_usage(char* prog_name) {
   printf("  -t <tracefile> : Path to the valgrind trace file\n");
 }
 
-// helper function to parse arguments
-void parse_arguments(int argc, char** argv) {
+// modify the config object accordingly, returns nothing
+void parse_arguments(int argc, char** argv, cache_config_t* config) {
   int opt;
   while ((opt = getopt(argc, argv, "hvs:E:b:t:")) != -1) {
     switch (opt) {
     case 'h':
       print_usage(argv[0]);
-      // exit successfully
       exit(0);
     case 'v':
-      verbose = 1;
+      config->verbose = 1;
       break;
     case 's':
-      s = atoi(optarg);
+      config->s = atoi(optarg);
       break;
     case 'E':
-      E = atoi(optarg);
+      config->E = atoi(optarg);
       break;
     case 'b':
-      b = atoi(optarg);
+      config->b = atoi(optarg);
       break;
     case 't':
-      tracefile = optarg;
+      config->tracefile = optarg;
       break;
     default:
       print_usage(argv[0]);
-      // exit unsuccessfully
       exit(1);
     }
   }
 
   // Check if required arguments are provided
-  if (s == 0 || E == 0 || b == 0 || tracefile == NULL) {
+  if (config->s == 0 || config->E == 0 || config->b == 0 || config->tracefile == NULL) {
     printf("Error: Missing required arguments\n");
     print_usage(argv[0]);
     exit(1);
   }
 }
 
-main() {
-  printSummary(0, 0, 0);
-  return 0;
+void parse_trace_file(cache_t* cache, cache_config_t* config) {
+  FILE* file = fopen(config->tracefile, "r");
+  if (!file) {
+    perror("Error opening trace file");
+    exit(EXIT_FAILURE);
+  }
+
+  char line[256];
+  while (fgets(line, sizeof(line), file)) {
+    char operation;
+    unsigned long long address;
+    int size;
+    //%c means read a single character
+    // leading whitespace skips all white spaces
+    //%lx reads a hex number and stores it as unsigned long
+    // ,%d ensures , must appear and %d reads an integer
+    if (sscanf(line, " %c %llx,%d", &operation, &address, &size) == 3) {
+      printf("Operation: %c, Address: 0x%llx, Value: %d\n", operation, address, size);
+      // do the cache simulation
+      cache_simulate(cache, config, operation, address);
+    }
+  };
+  fclose(file);
 }
+
+int main(int argc, char** argv) {
+  cache_config_t config = {0, 0, 0, NULL, 0}; // Initialize with defaults
+  parse_arguments(argc, argv, &config);
+
+  // Print parsed arguments (for debugging)
+  if (config.verbose) {
+    printf("Verbose mode enabled\n");
+    printf("s = %d, E = %d, b = %d, tracefile = %s\n", config.s, config.E, config.b,
+           config.tracefile);
+  }
+  // create the cache
+  cache_t* full_cache = cache_init(config.s, config.E, config.b);
+  // do the full simulation
+  parse_trace_file(full_cache, &config);
+
+  // print out the final results
+  printSummary(hits, misses, evictions);
+
+  return 0;
+};
