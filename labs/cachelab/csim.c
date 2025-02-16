@@ -145,6 +145,12 @@ cache_t* cache_init(int s, int E, int b) {
 void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
                     unsigned long long address) {
 
+  // if operation is instruction (I), ignore completely
+  // use single quotes for char
+  if (operation == 'I') {
+    return;
+  }
+
   // Extract set index and tag from address
 
   // creates a mask of ones with s bits all set to one. if s is 3, then mask is 0b111
