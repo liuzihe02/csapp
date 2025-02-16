@@ -154,6 +154,10 @@ void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
   unsigned long long tag = address >> (config->s + config->b);
   cache_set_t* set = cache->sets[set_index];
 
+  if (config->verbose) {
+    printf(" | requesting set %d, tag %llx | ", set_index, tag);
+  }
+
   // Search for hit
 
   // flag to indicate if hit
@@ -163,16 +167,24 @@ void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
       hit = 1;
       // reset time
       set->lines[i].time = 0;
+      // print if verbose
+      if (config->verbose) {
+        printf(" hit ");
+      }
       hits++;
       break;
     } else {
       // add to time
-      set->lines[i].time += 1;
+      set->lines[i].time++;
     }
   }
 
   // Handle miss
   if (!hit) {
+    // print if verbose
+    if (config->verbose) {
+      printf(" miss ");
+    }
     misses++;
     int placed = 0;
     for (int i = 0; i < cache->E; i++) {
@@ -200,15 +212,22 @@ void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
       }
       if (max_idx != -1) {
         // evict accordingly by replacing tag
+        // print if verbose
+        if (config->verbose) {
+          printf(" evict ");
+        }
         set->lines[max_idx].tag = tag;
       }
     }
-
-    // Modify operation ('M' means load + store, so always an extra hit)
-    // else its just the same as before
-    if (operation == 'M') {
-      hits++;
+  };
+  // Modify operation ('M' means load + store, so always an extra hit)
+  // else its just the same as before
+  if (operation == 'M') {
+    // print if verbose
+    if (config->verbose) {
+      printf(" hit_m ");
     }
+    hits++;
   }
 }
 
@@ -276,7 +295,7 @@ void parse_trace_file(cache_t* cache, cache_config_t* config) {
     //%lx reads a hex number and stores it as unsigned long
     // ,%d ensures , must appear and %d reads an integer
     if (sscanf(line, " %c %llx,%d", &operation, &address, &size) == 3) {
-      printf("Operation: %c, Address: 0x%llx, Value: %d\n", operation, address, size);
+      printf("\nOperation: %c, Address: 0x%llx, Value: %d", operation, address, size);
       // do the cache simulation
       cache_simulate(cache, config, operation, address);
     }
@@ -300,6 +319,7 @@ int main(int argc, char** argv) {
   parse_trace_file(full_cache, &config);
 
   // print out the final results
+  printf("\n");
   printSummary(hits, misses, evictions);
 
   return 0;
