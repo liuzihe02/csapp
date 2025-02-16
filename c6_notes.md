@@ -330,3 +330,71 @@ The cache starts empty with all valid bits set to 0:
 
 > Thrashing describes a situation where cache is repeatedly loading and evicting the same sets of cache blocks, thrash back and forth between loading and evicting
 > Can add padding to change the address such that the blocks no longer map to the same sets
+
+### Set Associative Caches
+
+A set associative cache has each set holding more than one cache line, where $1<E<c/B$
+
+<img src="images/C6_SetAssCache.png" width =600>
+
+1. Set Selection
+2. Line Matching and Word Selection
+
+<img src="images/C6_SetAssLineMatching.png" width =500>
+
+Cache must search each line in the set for a valid line whose tag matches the tag in the address
+
+#### Line Replacement
+
+Once cache has retrieved the block, which line should it replace? Simplest replacement policy is to choose the replacement line at random. Least Frequently Used (LFU) will replace the line that has be referenced the fewest times. LRU will replace the line accessed the furthest in the past.
+
+### Writes
+
+Operation of cache for reading is straightforward. For writes, multiple copies of *w* exist and deciding how to update all of them is difficult.
+
+**Write-Hit**
+- *Write-through*: write immediately to one level down and skip the current cache level
+  - Causes alot of bus traffic
+- *Write-back*: Defers update as long as possible by writing the updated block to the lower level only when it is evicted from cache by replacement policy
+  - Needs to maintain an additional dirty bit indicating if a block has been modified
+
+**Write-Miss**
+- *Write-Allocate*: Loads corresponding block from the next lower level and update current level cache
+- *No-Write-Allocate*: Bypasses cache and writes word directly to next lower level
+
+As a programmer, assume write-back, write-allocate caches. Lower levels of memory more likely to use write-back due to large transfer times. Both also exhibit good spatial and temporal locality.
+
+### Real Cache Hierarchy
+
+<img src="images/C6_IntelCoreI7.png" width =500>
+
+- A cache that holds instructions only is called i-cache
+- A cache holding data only is called d-cache
+- A cache holding both is called a unified cache
+
+### Performance Impact of Cache Parameters
+
+Cache performance evaluated with:
+- *Miss rate*: $n_{misses}/n_{references}$. Hit rate is 1 - miss_rate
+- *Hit Time*: Time to deliver a word in the cache to CPU registers
+- *Miss Penalty*: Any additional time required because of a miss
+
+**Cache Size**: 
+  - Larger cache increase the hit rate
+  - However increase hit time, hence L1 cache (more frequently used) smaller than L2.
+
+**Block Size**:
+  - Increase hit rate by exploiting spatial locality
+  - For a given cache size, larger blocks means less cache lines, hurt hit rate due to poor temporal locality
+  - Larger miss penalty as larger transfer times
+
+**Associativity**:
+  - Higher associativity (larger number of lines per set $E$) decreases vulnerability of thrashing due to conflict misses, lower chance of suffering miss penalty
+  - However expensive to implement
+  - Requires more LRU bits per line
+  - Additional complexity increases hit time and miss penalty
+  - Trade-off between hit time and miss penalty
+    - L1 cache has low miss penalty hence smaller associativity (no need reduce risk of thrashing)
+    - Lower levels has high miss penalty hence need more associativity
+
+> Reducing number of transfers become increasingly important down the hierarchy due to long transfer time
