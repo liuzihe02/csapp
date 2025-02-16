@@ -398,3 +398,174 @@ Cache performance evaluated with:
     - Lower levels has high miss penalty hence need more associativity
 
 > Reducing number of transfers become increasingly important down the hierarchy due to long transfer time
+
+## Cache Friendly Code
+
+- Repeated references to local variables are good because compiler can cache them in register (temporal locality)
+- Stride-1 reference patterns are good because cache at all levels of the memory hierarchy store data contiguously (spatial locality)
+
+> If you have stride-k reference pattern, at every iteration will need to load and evict lines. Stride-1 minimizes conflict misses.
+
+Here's the content converted to GitHub-flavored markdown:
+
+Spatial locality is especially important in programs that operate on multi-dimensional arrays:
+
+```c
+//sum row by row
+int sumarrayrows(int a[M][N])
+{
+    int i, j, sum = 0;
+    
+    for (i = 0; i < M; i++)
+        for (j = 0; j < N; j++)
+            sum += a[i][j];
+    return sum;
+}
+```
+
+Since C stores arrays in row-major order, the inner loop of this functionhas stride-1 reference pattern. `[m]` denotes misses and `[h]` denotes hits:
+
+| a[i][j] | j = 0 | j = 1 | j = 2 | j = 3 | j = 4 | j = 5 | j = 6 | j = 7 |
+|---------|--------|--------|--------|--------|--------|--------|--------|--------|
+| i = 0 | 1 [m] | 2 [h] | 3 [h] | 4 [h] | 5 [m] | 6 [h] | 7 [h] | 8 [h] |
+| i = 1 | 9 [m] | 10 [h] | 11 [h] | 12 [h] | 13 [m] | 14 [h] | 15 [h] | 16 [h] |
+| i = 2 | 17 [m] | 18 [h] | 19 [h] | 20 [h] | 21 [m] | 22 [h] | 23 [h] | 24 [h] |
+| i = 3 | 25 [m] | 26 [h] | 27 [h] | 28 [h] | 29 [m] | 30 [h] | 31 [h] | 32 [h] |
+
+But consider what happens if we make the seemingly innocuous change of permuting the loops:
+
+```c
+//column level
+int sumarraycols(int a[M][N])
+{
+    int i, j, sum = 0;
+    
+    for (j = 0; j < N; j++)
+        for (i = 0; i < M; i++)
+            sum += a[i][j];
+    return sum;
+}
+```
+
+In this case, we are scanning the array column by column instead of row by row. If we are lucky and the entire array fits in the cache, then we will enjoy the same miss rate of 1/4. However, if the array is larger than the cache (the more likely case), then *each and every access* of `a[i][j]` will miss!
+
+| a[i][j] | j = 0 | j = 1 | j = 2 | j = 3 | j = 4 | j = 5 | j = 6 | j = 7 |
+|---------|--------|--------|--------|--------|--------|--------|--------|--------|
+| i = 0 | 1 [m] | 5 [m] | 9 [m] | 13 [m] | 17 [m] | 21 [m] | 25 [m] | 29 [m] |
+| i = 1 | 2 [m] | 6 [m] | 10 [m] | 14 [m] | 18 [m] | 22 [m] | 26 [m] | 30 [m] |
+| i = 2 | 3 [m] | 7 [m] | 11 [m] | 15 [m] | 19 [m] | 23 [m] | 27 [m] | 31 [m] |
+| i = 3 | 4 [m] | 8 [m] | 12 [m] | 16 [m] | 20 [m] | 24 [m] | 28 [m] | 32 [m] |
+
+Higher miss rates have a significant impact on runtime.
+
+## Impact of Caching
+
+### Memory Mountain
+
+The rate a program reads data from the memory system is called read throughput. If a program reads *n* bytes over a period of *s* seconds, then *n/s* is the read throughput (MB/s).
+
+<img src="images/C6_MemMountain.png" width =500>
+
+`size` and `stride` arguments to this function allow us to control the degree of temporal and spatial locality of this read function. Smaller values of `size` results in smaller working set size, hence better temporal locality. Smaller values of `stride` results in better spatial locality. The ridges perpendicular to the size axis correspond to the different levels of memory hierarchy. Note how better temporal and spatial locality each increased read throughput.
+
+### Rearranging Loops to Increase Spatial Locality
+
+Matrix multiplication is usually implemented using 3 nested loops, which are identified by their indices i, j and k. If we permute the loops, we can create 6 functionally equivalent versions of matrix mult, each of $O(n^3)$.
+
+However, looking at the inner loop, we can see they scan elements with different strides. If the inner loop of the function accesses B and C, we call this a class BC routine.
+
+I'll help convert the matrix multiplication code examples and analysis table to GitHub-flavored markdown format.
+
+
+
+```c
+// (a) Version ijk
+for (i = 0; i < n; i++) {
+    for (j = 0; j < n; j++) {
+        sum = 0.0;
+        for (k = 0; k < n; k++)
+            //routine AB
+            //scan rows of array A with stride 1
+            // scan columns of B with a stride of n
+            sum += A[i][k]*B[k][j];
+        C[i][j] += sum;
+    }
+}
+
+// (b) Version jik
+for (j = 0; j < n; j++) {
+    for (i = 0; i < n; i++) {
+        sum = 0.0;
+        for (k = 0; k < n; k++)
+            //routine AB
+            //scan rows of array A with stride 1
+            // scan columns of B with a stride of n
+            sum += A[i][k]*B[k][j];
+        C[i][j] += sum;
+    }
+}
+
+// (c) Version jki
+// code/mem/matmult/mm.c
+for (j = 0; j < n; j++) {
+    for (k = 0; k < n; k++) {
+        r = B[k][j];
+        for (i = 0; i < n; i++)
+            //routine AC
+            //scan rows of array A with stride n
+            // scan columns of C with a stride of n
+            C[i][j] += A[i][k]*r;
+    }
+}
+
+// (d) Version kji
+// code/mem/matmult/mm.c
+for (k = 0; k < n; k++) {
+    for (j = 0; j < n; j++) {
+        r = B[k][j];
+        for (i = 0; i < n; i++)
+            //routine AC
+            //scan rows of array A with stride n
+            // scan columns of C with a stride of n
+            C[i][j] += A[i][k]*r;
+    }
+}
+
+// (e) Version kij
+for (k = 0; k < n; k++) {
+    for (i = 0; i < n; i++) {
+        r = A[i][k];
+        for (j = 0; j < n; j++)
+            //routine BC
+            //scan rows of array B with stride 1
+            // scan columns of C with a stride of 1
+            C[i][j] += r*B[k][j];
+    }
+}
+
+// (f) Version ikj
+for (i = 0; i < n; i++) {
+    for (k = 0; k < n; k++) {
+        r = A[i][k];
+        for (j = 0; j < n; j++)
+            //routine BC
+            //scan rows of array B with stride 1
+            // scan columns of C with a stride of 1
+            C[i][j] += r*B[k][j];
+    }
+}
+```
+
+| Matrix multiply version (class) | Loads | Stores | A misses | B misses | C misses | Total misses |
+|--------------------------------|-------|---------|-----------|-----------|-----------|---------------|
+| ijk & jik (AB)                 | 2     | 0       | 0.25      | 1.00      | 0.00      | 1.25          |
+| jki & kji (AC)                 | 1     | 1       | 1.00      | 0.00      | 1.00      | 2.00          |
+| kij & ikj (BC)                 | 2     | 1       | 0.00      | 0.25      | 0.25      | 0.50          |
+
+> A technique called blocking improves temporal locality. We organize data into large chunks called blocks, so that each block fits completely on the L1 cache. Does all the writing and reading on this chunk, discards this chunk, and goes to next chunk. Blocking most suited on systems without prefetching.
+
+## Summary
+
+- Focus on inner loops, where bulk of computations/memory access occur
+- Maximize spatial locality by using stride-1 reference pattern
+- Maximize temporal locality by using a data object as often as possible as it has been read from memory
