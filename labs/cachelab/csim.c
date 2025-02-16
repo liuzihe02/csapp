@@ -163,13 +163,20 @@ void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
   if (config->verbose) {
     printf(" | requesting set %d, tag %llx | ", set_index, tag);
   }
+  // increment time for all
+  for (int i = 0; i < cache->E; i++) {
+    // add to time first; for all lines
+    set->lines[i].time++;
+  }
 
   // Search for hit
 
   // flag to indicate if hit
   int hit = 0;
   for (int i = 0; i < cache->E; i++) {
+    // search for the tag
     if (set->lines[i].valid && set->lines[i].tag == tag) {
+      // successfully hit
       hit = 1;
       // reset time
       set->lines[i].time = 0;
@@ -178,10 +185,8 @@ void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
         printf(" hit ");
       }
       hits++;
+      // stop searching
       break;
-    } else {
-      // add to time
-      set->lines[i].time++;
     }
   }
 
@@ -198,6 +203,8 @@ void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
       if (!set->lines[i].valid) {
         set->lines[i].valid = 1;
         set->lines[i].tag = tag;
+        // reset time for placing at empty slot
+        set->lines[i].time = 0;
         placed = 1;
         break;
       }
@@ -205,24 +212,28 @@ void cache_simulate(cache_t* cache, cache_config_t* config, char operation,
 
     // If no empty slot, evict
     if (!placed) {
+      // print if verbose
+      if (config->verbose) {
+        printf(" evict ");
+      }
       evictions++;
-      // do LRU and replace the highest one
+
+      // do LRU and replace the highest time; oldest line
       int max_idx = -1;
       int max_time = 0;
       for (int i = 0; i < cache->E; i++) {
         if (set->lines[i].time > max_time) {
           max_time = set->lines[i].time;
           max_idx = i;
-          break;
         }
       }
       if (max_idx != -1) {
         // evict accordingly by replacing tag
-        // print if verbose
-        if (config->verbose) {
-          printf(" evict ");
-        }
         set->lines[max_idx].tag = tag;
+        // reset time
+        set->lines[max_idx].time = 0;
+      } else {
+        perror("Error, LRU eviction did not work");
       }
     }
   };
