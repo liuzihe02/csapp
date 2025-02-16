@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.tsx": "typescript",
+        "*.java": "java",
+        "random": "c"
+    }
+}
