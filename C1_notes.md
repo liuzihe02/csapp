@@ -24,7 +24,7 @@ The *GCC* compiler driver reads the source file *hello.c* and translates it into
 
 * **Preprocessing phase**. The pre-processor (cpp) modifies the original C program according to directives that begin with the # character. The result is another C program, typically with the .i suffix.
 * **Compilation phase**. The compiler (cc1) translates the text file *hello.i* into the text file *hello.s*, which contains an *assembly-language program*. Each statement in an assembly-language program exactly describes one low-level machine-language instruction in a standard text form. Assembly language is useful because it provides a common output language for different compilers for different high-level languages.
-* **Assembly phase**. The assemble (as) translate *hello.s* into machine-language instructions, packages them in a form known as a *relocatable object program*, and stores te result in the object file *hello.o*. The *hello.o* file is a binary file whose bytes encode machine-language instructions rather than characters.
+* **Assembly phase**. The assemble (as) translate *hello.s* into machine-language instructions, packages them in a form known as a *relocatable object program*, and stores the result in the object file *hello.o*. The *hello.o* file is a binary file whose bytes encode machine-language instructions rather than characters.
 * **Linking phase**. Notice that our *hello* program calls the *printf* function, which is part of the *standard C library* provided by every C compiler. The *printf* function resides in a seperate precompiled object file called *printf.o*, which must somehow be merged with our *hello.o* program. The linker (ld) handles this merging. The result is the *hello* file, which is an *executable object file* (or simply *executable*) that is ready to be loaded into memory and executed by the system.
 
 The *GNU* (short for *GNU's Not Unix) environment includes the *EMACS* editor, *GCC* compiler, *GDB* debugger, assembler, linker, utilities for manipulating binaries, and other components.
@@ -82,7 +82,7 @@ A *process* is the operating system’s abstraction for a running program. Multi
 
 ### Threads
 
-In modern systems a process can actually consist of multiple execution units, called *threads*, each running in the context of the process and sharing the same code and global data (within a process). Threads are an increasingly important programming model because of the requirement for concurrency in network servers, because it is easier to share data between multiple threads than between multiple processes, and because threads are typically more efficient than processes.
+In modern systems a process can actually consist of multiple execution units, called *threads*, each running in the context of the process and sharing the same code and global data *(within a process)*. Threads are an increasingly important programming model because of the requirement for concurrency in network servers, because it is easier to share data between multiple threads than between multiple processes, and because threads are typically more efficient than processes.
 
 ### Virtual Memory
 
